@@ -1,7 +1,7 @@
 /**
- * @file    ringbuffer.c
+ * @file    ringbuffer2.c
  * @author  oikiou (pq_liu@foxmail.com)
- * @brief   
+ * @brief   使用 usedSize 变量描述当前存储数据
  * @version 0.1
  * @date    2023-03-04 : 
  * 
@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ringbuffer.h"
+#include "ringbuffer2.h"
 
 /**
  * @brief   
@@ -37,7 +37,7 @@ uint32_t RingBuffer_InitPool(ringBuffer_t *rb, uint8_t *const pPool, uint32_t si
     rb->bufferSize = size;
     memset(rb->pBuffer, 0, rb->bufferSize);
     rb->wIndex = rb->rIndex = 0;
-    rb->wFlag = rb->rFlag = 0;
+    rb->usedSize = 0;
     return 0;
 }
 
@@ -52,7 +52,7 @@ uint32_t RingBuffer_ResetPool(ringBuffer_t *rb)
     rb->pBuffer = NULL;
     rb->bufferSize = 0;
     rb->wIndex = rb->rIndex = 0;
-    rb->wFlag = rb->rFlag = 0;
+    rb->usedSize = 0;
     return 0;
 }
 
@@ -72,9 +72,10 @@ uint32_t RingBuffer_InitMalloc(ringBuffer_t *rb, uint32_t size)
     {
         return 1;
     }
+    memset(rb->pBuffer, 0, rb->bufferSize);
     rb->bufferSize = size;
     rb->wIndex = rb->rIndex = 0;
-    rb->wFlag = rb->rFlag = 0;
+    rb->usedSize = 0;
     return 0;
 }
 
@@ -90,7 +91,7 @@ uint32_t RingBuffer_ResetMalloc(ringBuffer_t *rb)
     rb->pBuffer = NULL;
     rb->bufferSize = 0;
     rb->wIndex = rb->rIndex = 0;
-    rb->wFlag = rb->rFlag = 0;
+    rb->usedSize = 0;
     return 0;
 }
 
@@ -99,23 +100,10 @@ uint32_t RingBuffer_ResetMalloc(ringBuffer_t *rb)
  * @param   rb : 
  * @return  uint32_t : 
  */
-uint32_t RingBuffer_GetCount(ringBuffer_t *rb)
+static inline uint32_t RingBuffer_GetCount(ringBuffer_t *rb)
 {
-    uint32_t count = 0;
     RB_ASSERT (rb != NULL);
-    
-    if (rb->wIndex != rb->rIndex)
-    {
-        count = (rb->wIndex > rb->rIndex) ? 
-            (rb->wIndex - rb->rIndex) : 
-            (rb->bufferSize - rb->rIndex + rb->wIndex);
-    }
-    else
-    {
-        count = (rb->wFlag == rb->rFlag) ? (0) : (rb->bufferSize);
-    }
-    
-    return count;
+    return rb->usedSize;
 }
 
 /**
@@ -126,7 +114,7 @@ uint32_t RingBuffer_GetCount(ringBuffer_t *rb)
 static inline uint32_t RingBuffer_GetSpace(ringBuffer_t *rb)
 {
     RB_ASSERT (rb != NULL);
-    return rb->bufferSize - RingBuffer_GetCount(rb);
+    return rb->bufferSize - rb->usedSize;
 }
 
 /**
@@ -158,6 +146,7 @@ uint32_t RingBuffer_Put(ringBuffer_t *rb, const uint8_t *const pPutBuffer, uint3
     {
         memcpy(&rb->pBuffer[rb->wIndex], pPutBuffer, putSize);
         rb->wIndex += putSize;
+        rb->usedSize += putSize;
         return putSize;
     }
     
@@ -165,7 +154,7 @@ uint32_t RingBuffer_Put(ringBuffer_t *rb, const uint8_t *const pPutBuffer, uint3
     memcpy(&rb->pBuffer[rb->wIndex], &pPutBuffer[0], ringWIndexToBuffEnd);
     memcpy(&rb->pBuffer[0], &pPutBuffer[ringWIndexToBuffEnd], putSize-ringWIndexToBuffEnd);
     rb->wIndex = putSize-ringWIndexToBuffEnd;
-    rb->wFlag = ~rb->wFlag;
+    rb->usedSize += putSize;
     return putSize;
 }
 
@@ -197,15 +186,23 @@ uint32_t RingBuffer_Get(ringBuffer_t *rb, uint8_t *const pGetBuffer, uint32_t ge
     if(ringRIndexToBuffEnd > getSize)
     {
         memcpy(pGetBuffer, &rb->pBuffer[rb->rIndex], getSize);
+#if 0
+memset(&rb->pBuffer[rb->rIndex], '0', getSize);
+#endif
         rb->rIndex += getSize;
+        rb->usedSize -= getSize;
         return getSize;
     }
     
     // 发生位置翻转 记录flag 用于区分 wIndex == rIndex 时候是 full 还是 empty
     memcpy(pGetBuffer, &rb->pBuffer[rb->rIndex], ringRIndexToBuffEnd);
     memcpy(&pGetBuffer[ringRIndexToBuffEnd], &rb->pBuffer[0], getSize - ringRIndexToBuffEnd);
+#if 0
+memset(&rb->pBuffer[rb->rIndex], '0', ringRIndexToBuffEnd);
+memset(&rb->pBuffer[0], '0', getSize - ringRIndexToBuffEnd);
+#endif
     rb->rIndex = getSize - ringRIndexToBuffEnd;
-    rb->rFlag = ~rb->rFlag;
+    rb->usedSize -= getSize;
     return getSize;
 }
 

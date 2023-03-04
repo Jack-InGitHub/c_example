@@ -1,5 +1,5 @@
 /**
- * @file    ringbuffer.h
+ * @file    ringbuffer2.h
  * @author  oikiou (pq_liu@foxmail.com)
  * @brief   
  * @version 0.1
@@ -15,8 +15,8 @@
  * </table>
  */
 
-#ifndef RINGBUFFER_H__
-#define RINGBUFFER_H__
+#ifndef RINGBUFFER2_H__
+#define RINGBUFFER2_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,10 +35,10 @@ typedef struct _ringBuffer
     uint8_t type;
     uint8_t *pBuffer;
     
-    uint32_t rFlag   :1;
-    uint32_t rIndex  :31;
-    uint32_t wFlag   :1;
-    uint32_t wIndex  :31;
+    uint32_t rIndex;
+    uint32_t wIndex;
+    
+    uint32_t usedSize;
     
     uint32_t bufferSize;
 } ringBuffer_t;
